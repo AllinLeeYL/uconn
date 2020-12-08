@@ -147,8 +147,7 @@ stateDiagram-v2
 	Established --> SBUFF_Check(检查缓冲区):主动发送
 	SBUFF_Check(检查缓冲区) --> ACK_Wait_1(发送报文):缓冲区非空
 	ACK_Wait_1(发送报文) --> SBUFF_Check(检查缓冲区):收到正确ACK
-	SBUFF_Check(检查缓冲区) --> ACK_Wait_2(发送END):缓冲区空
-	ACK_Wait_2(发送END) --> Established:收到ACK
+	SBUFF_Check(检查缓冲区) --> Established:缓冲区空
 	Established --> RecvBUFF_Check(检查接收缓冲区):正确报文
 	Established --> ACK_Send(回送ACK):旧的报文
 	RecvBUFF_Check(检查接收缓冲区) --> RecvBUFF_Check(检查接收缓冲区):缓冲区不足

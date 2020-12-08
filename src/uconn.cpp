@@ -15,13 +15,13 @@ int Uconn::_uconnSetNonBlock(){
     return 1;
 }
 
-int Uconn::_uconnRecvFrom(void * _buff_, int _N_){
+int Uconn::_uconnRecvFrom(char * _buff_, int _N_){
     socklen_t socklen = sizeof(struct sockaddr);
     int n = recvfrom(this->sockfd, _buff_, _N_, 0, &(this->remoteAddr), &socklen);
     return n;
 }
 
-int Uconn::_uconnSendTo(void * _buff_, int _N_){
+int Uconn::_uconnSendTo(char * _buff_, int _N_){
     socklen_t socklen = sizeof(struct sockaddr);
     int n = sendto(this->sockfd, _buff_, _N_, 0, &(this->remoteAddr), socklen);
     return n;
@@ -85,7 +85,7 @@ int Uconn::_uconnAccept_1(){
             }
             case Listen:{
                 uheader = (uheader_t *)buff;
-                int n = this->_uconnRecvFrom(buff, sizeof(uheader_t));
+                int n = this->_uconnRecvFrom(buff, this->gramLen);
                 if (n < sizeof(uheader_t)){
                     break;
                 }
@@ -112,12 +112,12 @@ int Uconn::_uconnAccept_1(){
                 suheader.AckNum = this->remoteSeq->seq;
                 suheader.HeadLen = 16;
                 suheader.Control = UHEADER_CONTROL_ACK_SYN;
-                suheader.Window = 0;
+                suheader.Window = this->windowLen;
                 suheader.CheckSum = 0;
                 suheader.DataLen = 0;
                 suheader.CheckSum = this->_uconnComputeCheckSum((char *)(&suheader), sizeof(uheader_t));
 
-                this->_uconnSendTo(&suheader, sizeof(uheader_t));
+                this->_uconnSendTo((char *)(&suheader), this->gramLen);
                 this->commonState = Established;
                 this->sendTimer = 0;
                 break;
@@ -166,18 +166,18 @@ int Uconn::_uconnBuild_1(struct sockaddr * _addr_){
 
                 this->ubuff->setInitPtr(rand()%(this->ubuff->buffSize));
                 suheader.SeqNum = this->ubuff->endptr;
-                suheader.AckNum = 0;
+                suheader.AckNum = this->remoteSeq->seq;
                 suheader.HeadLen = 16;
                 suheader.Control = UHEADER_CONTROL_SYN;
-                suheader.Window = 0;
+                suheader.Window = this->windowLen;
                 suheader.CheckSum = 0;
                 suheader.DataLen = 0;
                 suheader.CheckSum = this->_uconnComputeCheckSum((char *)(&suheader), sizeof(uheader_t));
                 
-                this->_uconnSendTo(&suheader, sizeof(uheader_t));
+                this->_uconnSendTo((char *)(&suheader), this->gramLen);
 
                 uheader = (uheader_t *)buff;
-                int n = this->_uconnRecvFrom(buff, sizeof(uheader_t));
+                int n = this->_uconnRecvFrom(buff, this->gramLen);
                 if (n < sizeof(uheader_t)){
                     break;
                 }
@@ -191,6 +191,7 @@ int Uconn::_uconnBuild_1(struct sockaddr * _addr_){
                 if (uheader->Control != UHEADER_CONTROL_ACK_SYN){
                     break;
                 }
+                this->remoteSeq->seq = uheader->SeqNum;
                 this->commonState = Established;
                 this->sendTimer = 0;
                 break;
@@ -220,22 +221,94 @@ int Uconn::_uconnBuild_1(struct sockaddr * _addr_){
 
 int Uconn::_uSendBuff_1(char * _buff_, int _len_){
     this->sendTimer = 0;
+    int curptr = 0;
+    char * buff;
+    buff = (char *)malloc(UCONN_BUFF_SIZE);
+    uheader_t * uheader;
+    uheader = (uheader_t *)buff;
 
     while (this->sendTimer < UCONN_TIME_OUT){
         switch (this->sendState){
-            default:
+            case Send_Established:{
+                this->sendState = SP_BUFF_Check;
+                this->sendTimer = 0;
                 break;
+            }
+            case SP_BUFF_Check:{
+                if (curptr < _len_){
+                    this->sendState = SP_ACK_Wait_1;
+                    this->sendTimer = 0;
+                }
+                //缓冲区空，发送结束
+                else {
+                    this->sendState = Send_Established;
+                    this->sendTimer = 0;
+                    free(buff);
+                    return 1;
+                }
+                break;
+            }
+            case SP_ACK_Wait_1:{
+                int dataLen = 0;
+                uheader = (uheader_t *)buff;
+                dataLen = curptr + this->gramLen - sizeof(uheader_t) < _len_ ? this->gramLen + sizeof(uheader_t) : _len_ - curptr;
+                
+                //发送数据块
+                uheader->SeqNum = this->ubuff->endptr;
+                uheader->AckNum = this->remoteSeq->seq;
+                uheader->HeadLen = 16;
+                uheader->Control = UHEADER_CONTROL_DATA;
+                uheader->Window = this->windowLen;
+                uheader->CheckSum = 0;
+                uheader->DataLen = dataLen;
+                bstrcpy((char *)(buff+sizeof(uheader_t)), (char *)(_buff_+curptr), dataLen);
+                uheader->CheckSum = this->_uconnComputeCheckSum(buff, sizeof(uheader_t) + dataLen);
+                this->_uconnSendTo(buff, gramLen);
+                //接收ACK
+                int n = this->_uconnRecvFrom(buff, this->gramLen);
+                if (n < sizeof(uheader_t)){
+                    break;
+                }
+                n = this->_uconnCheckHeader((uheader_t *)buff);
+                if (n != 0){
+                    break;
+                }
+                if (this->_uconnCheckGram(buff, sizeof(uheader_t)) < 0){
+                    break;
+                }
+                if (uheader->Control != UHEADER_CONTROL_ACK){
+                    break;
+                }
+                if (uheader->AckNum != this->ubuff->endptr){
+                    break;
+                }
+                //收到正确ACK
+                curptr = curptr + dataLen;
+                this->sendState = SP_BUFF_Check;
+                this->sendTimer = 0;
+                this->remoteSeq->seq = uheader->SeqNum;
+                break;
+            }
+            default:{
+                break;
+            }
         }
         
         this->sendTimer = this->sendTimer + 1;
         usleep(UCONN_USLEEP_TIME);
     }
+    free(buff);
+    return -1;
 }
 //创建接收者线程
 int Uconn::_uRecvBuff(){
     if (this->trafficControl == Stop_Wait){
+        if (this->recvThreadID != 0){
+            return -1;
+        }
         if(pthread_create(&(this->recvThreadID), NULL , Uconn::_recvThread_1, this) == -1){
             perror("Thread Error");
+            this->threadMtx.unlock();
             return -1;
         }
     }
@@ -243,7 +316,17 @@ int Uconn::_uRecvBuff(){
 }
 
 int Uconn::_uconnClose_1(){
-
+    uheader_t suheader;
+    suheader.SeqNum = this->ubuff->endptr;
+    suheader.AckNum = this->remoteSeq->seq;
+    suheader.HeadLen = 16;
+    suheader.Control = UHEADER_CONTROL_FIN;
+    suheader.Window = this->windowLen;
+    suheader.CheckSum = 0;
+    suheader.DataLen = 0;
+    suheader.CheckSum = this->_uconnComputeCheckSum((char *)(&suheader), sizeof(uheader_t));
+    this->_uconnSendTo((char *)&suheader, gramLen);
+    return 1;
 }
 /*接收者线程，负责接收来自发送端的报文，维护一个接收缓冲区*/
 void *Uconn::_recvThread_1(void * _this_){
@@ -261,18 +344,13 @@ void *Uconn::_recvThread_1(void * _this_){
         switch (uconn_p->recvState){
             case Recv_Established:{
                 //先读取头部
-                n = uconn_p->_uconnRecvFrom(buff, sizeof(uheader_t));
+                n = uconn_p->_uconnRecvFrom(buff, uconn_p->gramLen);
                 if (n < sizeof(uheader_t)){
                     break;
                 }
                 //检查头部
                 n = uconn_p->_uconnCheckHeader((uheader_t *)buff);
                 if (n <= 0){
-                    break;
-                }
-                //再读取数据
-                m = uconn_p->_uconnRecvFrom((void *)(buff + sizeof(uheader_t)), n);
-                if (m != n){
                     break;
                 }
                 //检查校验和
@@ -286,45 +364,44 @@ void *Uconn::_recvThread_1(void * _this_){
                     uconn_p->recvTimer = 0;
                     break;
                 }//旧的报文
-                else if (*(uconn_p->remoteSeq) > uheader->AckNum){
+                else if (*(uconn_p->ubuff) > uheader->AckNum){
                     uheader_t suheader;
                     suheader.SeqNum = uconn_p->ubuff->endptr;
                     suheader.AckNum = uconn_p->remoteSeq->seq;
                     suheader.HeadLen = 16;
                     suheader.Control = UHEADER_CONTROL_ACK;
-                    suheader.Window = 0;
+                    suheader.Window = uconn_p->windowLen;
                     suheader.CheckSum = 0;
                     suheader.DataLen = 0;
                     suheader.CheckSum = uconn_p->_uconnComputeCheckSum((char *)(&suheader), sizeof(uheader_t));
-                    uconn_p->_uconnSendTo(&suheader, sizeof(uheader_t));
-                    uconn_p->recvTimer = 0;
+                    uconn_p->_uconnSendTo((char *)&suheader, uconn_p->gramLen);
                 }
                 //不正确的报文直接忽略
                 break;
             }
             case SP_RecvBUFF_Check:{
                 uheader_t suheader;
-                if (uconn_p->mtx.try_lock() == false){
-                    break;
-                }
+                uconn_p->mtx.lock();
                 //缓冲区不足
                 if (uconn_p->ubuff->remainSize() < (n + sizeof(uheader_t))){
                     uconn_p->mtx.unlock();
                     break;
                 }
                 //缓冲区充足
-                uconn_p->ubuff->write(buff, n + sizeof(uheader_t));
+                uconn_p->ubuff->write((char *)(buff+sizeof(uheader_t)), n);
                 uconn_p->mtx.unlock();
 
                 suheader.SeqNum = uconn_p->ubuff->endptr;
                 suheader.AckNum = uconn_p->remoteSeq->seq;
                 suheader.HeadLen = 16;
                 suheader.Control = UHEADER_CONTROL_ACK;
-                suheader.Window = 0;
+                suheader.Window = uconn_p->windowLen;
                 suheader.CheckSum = 0;
                 suheader.DataLen = 0;
                 suheader.CheckSum = uconn_p->_uconnComputeCheckSum((char *)(&suheader), sizeof(uheader_t));
-                uconn_p->_uconnSendTo(&suheader, sizeof(uheader_t));
+                uconn_p->_uconnSendTo((char *)&suheader, uconn_p->gramLen);
+                uconn_p->recvState = Recv_Established;
+                uconn_p->recvTimer = 0;
                 break;
             }
             default:{
@@ -334,8 +411,12 @@ void *Uconn::_recvThread_1(void * _this_){
         uconn_p->recvTimer = uconn_p->recvTimer + 1;
         usleep(UCONN_USLEEP_TIME);
     }
-
+    uconn_p->threadMtx.lock();
+    uconn_p->recvThreadID = 0;
+    uconn_p->commonState = Closed;
+    uconn_p->threadMtx.unlock();
     printf("recvThread End\n");
+    return NULL;
 }
 
 Uconn::Uconn(){
@@ -374,9 +455,33 @@ int Uconn::uconnBuild(struct sockaddr * _addr_){
 }
 /*发送缓冲区，若失败则返回-1*/
 int Uconn::uSendBuff(char * _buff_, int _len_){
+    this->sendState = SP_BUFF_Check;
     if (this->trafficControl == Stop_Wait){
         return this->_uSendBuff_1(_buff_, _len_);
     }
+    return -1;
+}
+
+int Uconn::uReadBuff(char * _buff_, int _len_){
+    this->mtx.lock();
+    int n = this->ubuff->read(_buff_, _len_);
+    this->mtx.unlock();
+    return n;
+}
+
+int Uconn::uGetBuff(char * _buff_, int _len_){
+    this->mtx.lock();
+    int n = this->ubuff->get(_buff_, _len_);
+    this->mtx.unlock();
+    return n;
+}
+
+int Uconn::isClosed(){
+    return this->commonState == Closed ? 1 : 0;
+}
+
+int Uconn::isOpen(){
+    return this->commonState == Closed ? 0 : 1;
 }
 
 int Uconn::uconnClose(){

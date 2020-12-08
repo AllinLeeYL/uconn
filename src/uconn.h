@@ -18,16 +18,17 @@
 #define UCONN_DEFAULT_WINDOWLEN 1024 //默认窗口长度
 #define UCONN_DEFAULT_GRAMLEN 1024 //默认报文长度
 #define UCONN_BUFF_SIZE 65536 //默认缓冲区长度
-#define UCONN_TIME_OUT 600 //2秒超时
-#define UCONN_USLEEP_TIME 10000 //10毫秒刷新
+#define UCONN_TIME_OUT 20 //2秒超时
+#define UCONN_USLEEP_TIME 100000 //100毫秒刷新
 
 /*uheader_t控制位标记*/
-#define UHEADER_CONTROL_URG 0b00100000
-#define UHEADER_CONTROL_ACK 0b00010000
-#define UHEADER_CONTROL_PSH 0b00001000
-#define UHEADER_CONTROL_RST 0b00000100
-#define UHEADER_CONTROL_SYN 0b00000010
-#define UHEADER_CONTROL_FIN 0b00000001
+#define UHEADER_CONTROL_DATA    0b01000000
+#define UHEADER_CONTROL_URG     0b00100000
+#define UHEADER_CONTROL_ACK     0b00010000
+#define UHEADER_CONTROL_PSH     0b00001000
+#define UHEADER_CONTROL_RST     0b00000100
+#define UHEADER_CONTROL_SYN     0b00000010
+#define UHEADER_CONTROL_FIN     0b00000001
 #define UHEADER_CONTROL_ACK_SYN 0b00010010
 
 //流量控制方法
@@ -61,8 +62,7 @@ enum SendState{
     Send_Established,
     //停等机制状态
     SP_BUFF_Check,
-    SP_ACK_Wait_1,
-    SP_ACK_Wait_2
+    SP_ACK_Wait_1
 };
 
 //uconn接收状态
@@ -105,14 +105,15 @@ protected:
     Ubuff * ubuff;
     Useq * remoteSeq;
     pthread_t recvThreadID;
-    std::mutex mtx;
+    std::mutex threadMtx;
+    std::mutex mtx; //缓冲区锁
 protected:
 
     int _uconnSetNonBlock();
     /*从远端接收UDP报文*/
-    int _uconnRecvFrom(void *, int);
+    int _uconnRecvFrom(char *, int);
     /*向远端发送UDP报文*/
-    int _uconnSendTo(void *, int);
+    int _uconnSendTo(char *, int);
     /*检查报头，包括报头长度
     若报文不正确，则返回-1，否则返回报文长度，
     报文长度可能是0.*/
@@ -146,7 +147,11 @@ public:
     int uconnBuild(struct sockaddr *); /*建立连接，超时没有建立则返回-1*/
 
     int uSendBuff(char *, int); /*发送缓冲区，若失败则返回-1*/
+    int uReadBuff(char *, int); /*读取缓冲区，不移动指针*/
+    int uGetBuff(char *, int); /*读取缓冲区，移动指针*/
 
+    int isClosed();
+    int isOpen();
     int uconnClose(); //关闭连接
     ~Uconn();
 };

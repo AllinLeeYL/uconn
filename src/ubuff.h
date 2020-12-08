@@ -43,6 +43,9 @@ public:
     int write(char *, uint32_t); //写入字节为n的缓冲区
     int read(char *, uint32_t); //读取字节为n的缓冲区，不删除
     int get(char *, uint32_t); //获取字节为n的缓冲区，删除
+
+    int operator<(uint32_t) const;
+    int operator>(uint32_t) const;
     ~Ubuff();
 };
 

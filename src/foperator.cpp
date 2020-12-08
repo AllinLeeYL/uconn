@@ -5,7 +5,7 @@ fspliter_t * fsplit(FILE * __fp__, uint32_t __blockSize__){
         return 0;
     }
     fspliter_t * __fsplt__;
-    __fsplt__ = malloc(sizeof(fspliter_t));
+    __fsplt__ = (fspliter_t *)malloc(sizeof(fspliter_t));
     //初始化fspliter
     __fsplt__->fp = __fp__;
     fseek(__fp__, 0, SEEK_END);
@@ -36,11 +36,5 @@ long fsplt_next(char * __buff__, fspliter_t * __fsplt__, long __size__){
         fread(__buff__, __size__, 1, __fsplt__->fp);
         __fsplt__->curptr = __fsplt__->curptr + __size__;
         return __size__;
-    }
-}
-
-void bstrcpy(char * __des__, char * __src__, uint32_t __length__){
-    for (int i = 0; i < __length__; i++){
-        __des__[i] = __src__[i];
     }
 }

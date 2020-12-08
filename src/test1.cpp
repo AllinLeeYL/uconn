@@ -9,11 +9,20 @@ int main(){
     bzero(&servaddr , sizeof(struct sockaddr_in));
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	servaddr.sin_port = htons(PORT);
+	servaddr.sin_port = htons(PORT+1);
     uconn->ubindAddr((struct sockaddr *)&servaddr);
-    while (uconn->uconnAccept() < 0){
+    inet_pton(AF_INET , "127.0.0.1", &servaddr.sin_addr);
+	servaddr.sin_port = htons(PORT);
+    char buff[65536] = "fuuuuuck!";
+
+    while (uconn->uconnBuild((struct sockaddr *)&servaddr) < 0){
         printf("failure\n");
     }
     printf("success\n");
+    uconn->uSendBuff(buff, 60);
+    strcpy(buff, "BIG fuuuuuuuuuuuuck!");
+    if (uconn->uSendBuff(buff, 60) < 0){
+        printf("send second wrong\n");
+    }
     delete uconn;
 }

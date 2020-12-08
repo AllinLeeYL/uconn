@@ -147,9 +147,8 @@ int Ubuff::write(char * _buff_, uint32_t _len_){
 }
 
 int Ubuff::read(char * _buff_, uint32_t _len_){
-    if (this->size() < _len_){
-        return -1;
-    }
+    _len_ = this->size() <= _len_ ? this->size() : _len_;
+    //读取数据
     for (int i = 0; i < _len_; i = i + 1){
         if ((this->curptr + i) < this->buffSize){
             _buff_[i] = this->buff[this->curptr + i];
@@ -158,13 +157,13 @@ int Ubuff::read(char * _buff_, uint32_t _len_){
             _buff_[i] = this->buff[this->curptr + i - this->buffSize];
         }
     }
+    //不移动指针
     return _len_;
 }
 
 int Ubuff::get(char * _buff_, uint32_t _len_){
-    if (this->size() < _len_){
-        return -1;
-    }
+    _len_ = this->size() <= _len_ ? this->size() : _len_;
+    //读取数据
     for (int i = 0; i < _len_; i = i + 1){
         if ((this->curptr + i) < this->buffSize){
             _buff_[i] = this->buff[this->curptr + i];
@@ -173,6 +172,7 @@ int Ubuff::get(char * _buff_, uint32_t _len_){
             _buff_[i] = this->buff[this->curptr + i - this->buffSize];
         }
     }
+    //移动指针
     if (this->curptr + _len_ < this->buffSize){
         this->curptr = this->curptr + _len_;
     }
@@ -180,6 +180,35 @@ int Ubuff::get(char * _buff_, uint32_t _len_){
         this->curptr = this->curptr + _len_ - this->buffSize;
     }
     return _len_;
+}
+
+int Ubuff::operator<(uint32_t _n_) const{
+    int distance = 0;
+    if (_n_ == this->endptr){
+        return 0;
+    }
+    else if (this->endptr < _n_){
+        distance = this->endptr + this->buffSize - _n_;
+    }
+    else{
+        distance = this->endptr - _n_;
+    }
+    if (distance > int(this->buffSize / 2)){
+        return 1;
+    }
+    else{
+        return 0;
+    }
+}
+
+int Ubuff::operator>(uint32_t _n_) const{
+    int distance = 0;
+    if (_n_ == this->endptr){
+        return 0;
+    }
+    else{
+        return *this < _n_ ? 0 : 1;
+    }
 }
 
 Ubuff::~Ubuff(){

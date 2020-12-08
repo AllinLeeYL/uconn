@@ -3,6 +3,6 @@
 #include <stdio.h>
 #include <stdint.h>
 
-void bstrcpy(char * __des__, char * __src__, uint32_t __length__);
+void bstrcpy(char * __des__, char * __src__, int __length__);
 
 #endif

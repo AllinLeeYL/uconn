@@ -2,8 +2,11 @@
 #define _BOBLI_FTRANSFER_H
 
 #include "uconn.h"
+#include "foperator.h"
+#include <netinet/in.h>
 
-#define FTRANSFER_FILENAME_LEN 1024
+#define FTRANSFER_BLOCK_SIZE 1024
+#define FTRANSFER_TRY_TIMES 5
 
 #define FTRHEADER_PROTOCOL 0x19 //协议标识位
 #define FTRHEADER_CONTROL_FILENAME 0x00 //文件名
@@ -21,15 +24,21 @@ typedef struct {
 
 class ftransfer{
 protected:
-    FILE * fp; //文件
-    char filename[FTRANSFER_FILENAME_LEN];
-    long int fileSize; //文件大小
-    long int cur; //当前位置偏移量
+    FILE * fp;
+    fspliter_t * fsp;
+    char filename[FTRANSFER_BLOCK_SIZE];
+    Uconn * uconn;
+    struct sockaddr remoteAddr;
+    int timer;
 public:
     ftransfer();
-    int ftropen(char *, char *); //打开的文件名，打开的方式
-    int ftrSend(char *, struct sockaddr *); //发送文件名，远端地址
-    int ftrRecv(char *, char *);//第一个参数指定存储目录，第二个用于存储返回的文件名
+    ~ftransfer();
+    void bindAddr(struct sockaddr *);
+    void bindRemoteAddr(struct sockaddr *);
+    int open(char *, char *); //打开的文件名，打开的方式
+    int close();
+    int Send(char *, struct sockaddr *); //发送文件名，远端地址
+    int Recv(char *, char *);//第一个参数指定存储目录，第二个用于存储返回的文件名
 };
 
 #endif
