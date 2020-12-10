@@ -17,14 +17,14 @@
 #include "ubuff.h"
 #include "foperator.h"
 
-#define UCONN_DEFAULT_WINDOWLEN 31 //默认窗口长度
-#define UCONN_DEFAULT_GRAMLEN 2048 //默认报文长度
+#define UCONN_DEFAULT_WINDOWLEN 63 //默认窗口长度
+#define UCONN_DEFAULT_GRAMLEN 1400 //默认报文长度
 #define UCONN_BUFF_SIZE UCONN_DEFAULT_GRAMLEN*UCONN_DEFAULT_WINDOWLEN+1 //默认缓冲区长度
 
 #define UCONN_FSM_TIME_OUT 40 //状态机最大未出现状态转移的次数
 #define UCONN_FSM_USLEEP_TIME 2000 //状态机睡眠时间
 
-#define UCONN_NET_DELAY 10000 //报文往返延时毫秒
+#define UCONN_NET_DELAY 40000 //报文往返延时
 #define UCONN_RECV_MAX_TRY_TIME 400 //尝试接收的最大次数
 #define UCONN_RECV_TRY_INTERVAL 5 //尝试接收的时间间隔
 
