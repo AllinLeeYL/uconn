@@ -8,31 +8,36 @@ Useq::~Useq(){
     ;
 }
 
-Useq::Useq(int _size_){
+Useq::Useq(uint32_t _size_){
     this->size = _size_;
 }
 
-Useq Useq::operator+(const Useq & _useq_) const{
+uint32_t Useq::operator+(const Useq & _useq_) const{
     Useq useq;
     useq.size = this->size <= _useq_.size ? this->size : _useq_.size;
     for (useq.size = this->seq + _useq_.seq; useq.seq >= useq.size; useq.seq = useq.seq - useq.size){
         ;
     }
-    return useq;
+    return useq.seq;
 }
 
-Useq Useq::operator+(uint32_t _n_) const{
+uint32_t Useq::operator+(uint32_t _n_) const{
     Useq useq;
     useq.size = this->size;
     for (useq.seq = this->seq + _n_; useq.seq >= useq.size; useq.seq = useq.seq - useq.size){
         ;
     }
-    return useq;
+    return useq.seq;
 }
 
 int Useq::operator=(const Useq & _useq_){
     this->size = _useq_.size;
     this->seq = _useq_.seq;
+    return 1;
+}
+
+int Useq::operator=(uint32_t _n_){
+    this->seq = _n_;
     return 1;
 }
 
@@ -201,8 +206,11 @@ int Ubuff::operator<(uint32_t _n_) const{
     }
 }
 
+int Ubuff::operator<=(uint32_t _n_) const{
+    return (_n_ == this->endptr || *this < _n_);
+}
+
 int Ubuff::operator>(uint32_t _n_) const{
-    int distance = 0;
     if (_n_ == this->endptr){
         return 0;
     }

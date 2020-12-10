@@ -117,6 +117,7 @@ int Uconn::_uconnAccept_1(){
                 suheader.DataLen = 0;
                 suheader.CheckSum = this->_uconnComputeCheckSum((char *)(&suheader), sizeof(uheader_t));
 
+                this->_uconnSendTo((char *)(&suheader), this->gramLen); //发送两次以增大连接建立几率
                 this->_uconnSendTo((char *)(&suheader), this->gramLen);
                 this->commonState = Established;
                 this->sendTimer = 0;
@@ -294,12 +295,12 @@ int Uconn::uSendFile(FILE * fp, char * _filename_){
     return -1;
 }
 
-int Uconn::uRecvFile(){
+int Uconn::uRecvFile(char * _filename_){
     if (this->trafficControl == Stop_Wait){
-        return this->_uRecvFile_1();
+        return this->_uRecvFile_1(_filename_);
     }
     else if (this->trafficControl == GBN){
-        return this->_uRecvFile_2();
+        return this->_uRecvFile_2(_filename_);
     }
     return -1;
 }
@@ -375,8 +376,9 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
                 //窗口已经填满
                 this->usendBuff->read(windowbuff, blockSize * this->windowLen);
                 for (uint32_t i = 0; i < (uint32_t)(blockSize * this->windowLen); i = i + blockSize){
+                    *(this->remoteSeq) = this->usendBuff->curptr;
                     suheader->SeqNum = this->ubuff->endptr; //本机期待收到的下一个序列号
-                    suheader->AckNum = this->usendBuff->curptr + i; //远端序列号
+                    suheader->AckNum = *(this->remoteSeq) + i; //远端序列号
                     suheader->HeadLen = 16;
                     suheader->Control = UHEADER_CONTROL_FILEDATA;
                     suheader->Window = this->windowLen;
@@ -388,7 +390,7 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
                 }
                 //接收ACK
                 usleep(UCONN_NET_DELAY);
-                for (int n = 0; n < UCONN_RECV_MAX_TRY_TIME * this->windowLen; n = n + 1){
+                for (int n = 0; n < 2 * this->windowLen; n = n + 1){
                     usleep(UCONN_RECV_TRY_INTERVAL);
                     int len = this->_uconnRecvFrom(recvbuff, this->gramLen);
                     if (len <= 0 || this->_uconnCheckGram(recvbuff, this->gramLen) < 0){
@@ -402,6 +404,7 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
                     //报文正确
                     this->usendBuff->curptr = ruheader->SeqNum;
                 }
+                continue;
             }
         }
         else{
@@ -417,8 +420,9 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
                 this->usendBuff->read(windowbuff, this->usendBuff->size());
                 for (uint32_t i = 0; i < this->usendBuff->size(); i = i + blockSize){
                     int dataLen = this->usendBuff->size() - i < blockSize ? this->usendBuff->size() - i : blockSize;
+                    *(this->remoteSeq) = this->usendBuff->curptr;
                     suheader->SeqNum = this->ubuff->endptr; //本机期待收到的下一个序列号
-                    suheader->AckNum = this->usendBuff->curptr + i; //远端序列号
+                    suheader->AckNum = *(this->remoteSeq) + i; //远端序列号
                     suheader->HeadLen = 16;
                     suheader->Control = UHEADER_CONTROL_FILEDATA;
                     suheader->Window = this->windowLen;
@@ -430,7 +434,7 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
                 }
                 //接收ACK
                 usleep(UCONN_NET_DELAY);
-                for (int n = 0; n < UCONN_RECV_MAX_TRY_TIME * this->windowLen; n = n + 1){
+                for (int n = 0; n < 2 * this->windowLen; n = n + 1){
                     usleep(UCONN_RECV_TRY_INTERVAL);
                     int len = this->_uconnRecvFrom(recvbuff, this->gramLen);
                     if (len <= 0 || this->_uconnCheckGram(recvbuff, this->gramLen) < 0){
@@ -444,6 +448,7 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
                     //报文正确
                     this->usendBuff->curptr = ruheader->SeqNum;
                 }
+                continue;
             }
         }
     }
@@ -487,12 +492,12 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
     free(recvbuff);
 }
 //接收文件，停等协议
-int Uconn::_uRecvFile_1(){
+int Uconn::_uRecvFile_1(char * _filename_){
 
 }
 
 //接收文件，滑动窗口协议
-int Uconn::_uRecvFile_2(){
+int Uconn::_uRecvFile_2(char * _filename_){
     uint32_t blockSize = this->gramLen - sizeof(uheader_t);
     char * sendbuff, * recvbuff, * blockbuff;
     FILE * fp = NULL;
@@ -545,12 +550,13 @@ int Uconn::_uRecvFile_2(){
     printf("收到文件名\n");
     strcpy(blockbuff, "copy_");
     strcat(blockbuff, (char *)(recvbuff + sizeof(uheader_t)));
+    strcpy(_filename_, blockbuff);
     if (fp != NULL){
         fclose(fp);
     }
     fp = fopen(blockbuff, "wb");
     //开始传送数据
-    for (this->recvTimer = 0; this->recvTimer < UCONN_FSM_TIME_OUT; this->recvTimer = this->recvTimer + 1){
+    for (this->recvTimer = 0; this->recvTimer < UCONN_FSM_TIME_OUT*10; this->recvTimer = this->recvTimer + 1){
         for (int n = 0; n < UCONN_RECV_MAX_TRY_TIME; n = n + 1){
             usleep(UCONN_RECV_TRY_INTERVAL);
             int len = this->_uconnRecvFrom(recvbuff, this->gramLen);
@@ -558,7 +564,7 @@ int Uconn::_uRecvFile_2(){
                 //数据报校验：判断是否是数据报
                 continue;
             }
-            if (ruheader->AckNum != this->ubuff->endptr){
+            if (*(this->ubuff) > ruheader->AckNum){
                 //正确性校验：判断报文是否正确
                 continue;
             }
@@ -574,9 +580,12 @@ int Uconn::_uRecvFile_2(){
                 continue;
             }
             //报文正确，是文件数据
-            fwrite((char *)(recvbuff + sizeof(uheader_t)), ruheader->DataLen, 1, fp);
-            this->ubuff->write((char *)(recvbuff + sizeof(uheader_t)), ruheader->DataLen);
-            this->ubuff->get((char *)(recvbuff + sizeof(uheader_t)), ruheader->DataLen);
+            if (ruheader->AckNum == this->ubuff->endptr){
+                fwrite((char *)(recvbuff + sizeof(uheader_t)), ruheader->DataLen, 1, fp);
+                this->ubuff->write((char *)(recvbuff + sizeof(uheader_t)), ruheader->DataLen);
+                this->ubuff->get((char *)(recvbuff + sizeof(uheader_t)), ruheader->DataLen);
+                this->recvTimer = 0;
+            }
             this->usendBuff->setInitPtr(ruheader->SeqNum);
             suheader->SeqNum = this->ubuff->endptr; //本机期待收到的下一个序列号
             suheader->AckNum = this->usendBuff->curptr; //远端序列号
@@ -587,9 +596,13 @@ int Uconn::_uRecvFile_2(){
             suheader->DataLen = uint16_t(0); 
             suheader->CheckSum = this->_uconnComputeCheckSum(sendbuff, this->gramLen);
             this->_uconnSendTo(sendbuff, this->gramLen);
-            this->recvTimer = 0;
         }
         usleep(UCONN_FSM_USLEEP_TIME);
+    }
+    if (this->recvTimer >= UCONN_FSM_TIME_OUT*10){
+        printf("接收失败\n");
+        fclose(fp);
+        return -1;
     }
     //文件结尾
     _uRecvFile_2_FILEEOF:
@@ -610,6 +623,7 @@ int Uconn::_uRecvFile_2(){
     free(sendbuff);
     free(recvbuff);
     free(blockbuff);
+    return 1;
 }
 
 int Uconn::isClosed(){
@@ -625,7 +639,7 @@ int Uconn::uconnClose(){
 }
 
 Uconn::~Uconn(){
-    pthread_join(this->recvThreadID, NULL);
+    //pthread_join(this->recvThreadID, NULL);
     delete this->ubuff;
     delete this->usendBuff;
     delete this->remoteSeq;

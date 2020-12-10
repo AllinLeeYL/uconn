@@ -17,9 +17,10 @@ int uconntest(){
         ;
     }
     printf("连接成功\n");
-    while (uconn->uRecvFile() < 0){
+    while (uconn->uRecvFile(buff) < 0){
         ;
     }
+    printf("文件名：%s\n", buff);
 }
 
 int filetest(){
