@@ -117,6 +117,7 @@ int Uconn::_uconnAccept_1(){
                 suheader.DataLen = 0;
                 suheader.CheckSum = this->_uconnComputeCheckSum((char *)(&suheader), sizeof(uheader_t));
 
+                this->_uconnSendTo((char *)(&suheader), this->gramLen); //发送两次以增大连接建立几率
                 this->_uconnSendTo((char *)(&suheader), this->gramLen);
                 this->commonState = Established;
                 this->sendTimer = 0;
@@ -550,7 +551,7 @@ int Uconn::_uRecvFile_2(){
     }
     fp = fopen(blockbuff, "wb");
     //开始传送数据
-    for (this->recvTimer = 0; this->recvTimer < UCONN_FSM_TIME_OUT; this->recvTimer = this->recvTimer + 1){
+    for (this->recvTimer = 0; this->recvTimer < UCONN_FSM_TIME_OUT*10; this->recvTimer = this->recvTimer + 1){
         for (int n = 0; n < UCONN_RECV_MAX_TRY_TIME; n = n + 1){
             usleep(UCONN_RECV_TRY_INTERVAL);
             int len = this->_uconnRecvFrom(recvbuff, this->gramLen);
@@ -591,6 +592,10 @@ int Uconn::_uRecvFile_2(){
         }
         usleep(UCONN_FSM_USLEEP_TIME);
     }
+    if (this->recvTimer >= UCONN_FSM_TIME_OUT*10){
+        printf("接收失败\n");
+        return -1;
+    }
     //文件结尾
     _uRecvFile_2_FILEEOF:
     printf("文件接收成功\n");
@@ -625,7 +630,7 @@ int Uconn::uconnClose(){
 }
 
 Uconn::~Uconn(){
-    pthread_join(this->recvThreadID, NULL);
+    //pthread_join(this->recvThreadID, NULL);
     delete this->ubuff;
     delete this->usendBuff;
     delete this->remoteSeq;

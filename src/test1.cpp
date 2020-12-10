@@ -22,8 +22,8 @@ int uconntest(){
     printf("连接成功\n");
     time_t start,stop;
     start = time(NULL);
-    FILE * fp = fopen("./test/1.jpg", "rb");
-    uconn->uSendFile(fp, "1.jpg");
+    FILE * fp = fopen("./test/3.jpg", "rb");
+    uconn->uSendFile(fp, "3.jpg");
     fclose(fp);
     stop = time(NULL);
     printf("发送用时:%ld\n",(stop-start));

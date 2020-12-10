@@ -3,29 +3,30 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <string.h>
 #include <stdint.h>
 #include <sys/socket.h>
 #include <fcntl.h> //非阻塞socket
 #include <unistd.h>
 /*线程*/
-#include <thread>
-#include <mutex>
+//#include <thread>
+//#include <mutex>
 
 #include "utility.h"
 #include "ubuff.h"
 #include "foperator.h"
 
-#define UCONN_DEFAULT_WINDOWLEN 10 //默认窗口长度
-#define UCONN_DEFAULT_GRAMLEN 1024 //默认报文长度
-#define UCONN_BUFF_SIZE 65536 //默认缓冲区长度
+#define UCONN_DEFAULT_WINDOWLEN 31 //默认窗口长度
+#define UCONN_DEFAULT_GRAMLEN 1024*4 //默认报文长度
+#define UCONN_BUFF_SIZE UCONN_DEFAULT_GRAMLEN*UCONN_DEFAULT_WINDOWLEN+1 //默认缓冲区长度
 
 #define UCONN_FSM_TIME_OUT 20 //状态机最大未出现状态转移的次数
-#define UCONN_FSM_USLEEP_TIME 10000 //状态机睡眠时间
+#define UCONN_FSM_USLEEP_TIME 1000 //状态机睡眠时间
 
-#define UCONN_NET_DELAY 80000 //报文往返延时毫秒
-#define UCONN_RECV_MAX_TRY_TIME 8 //尝试接收的最大次数
-#define UCONN_RECV_TRY_INTERVAL 5000 //尝试接收的时间间隔
+#define UCONN_NET_DELAY 10000 //报文往返延时毫秒
+#define UCONN_RECV_MAX_TRY_TIME 40 //尝试接收的最大次数
+#define UCONN_RECV_TRY_INTERVAL 10 //尝试接收的时间间隔
 
 /*uheader_t控制位标记*/
 #define UHEADER_CONTROL_FILENAME 0b10000000
@@ -115,8 +116,8 @@ protected:
     Ubuff * usendBuff;
     Useq * remoteSeq;
     pthread_t recvThreadID;
-    std::mutex threadMtx;
-    std::mutex mtx; //缓冲区锁
+    //std::mutex threadMtx;
+    //std::mutex mtx; //缓冲区锁
 protected:
     int _uconnSetNonBlock();
     /*检查报头，包括报头长度
