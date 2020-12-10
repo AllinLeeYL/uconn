@@ -13,7 +13,6 @@
                 "${fileDirname}/foperator.cpp",
                 "${fileDirname}/ubuff.cpp",
                 "${fileDirname}/uconn.cpp",
-                "${fileDirname}/ftransfer.cpp",
                 "${file}"
             ],
             "options": {

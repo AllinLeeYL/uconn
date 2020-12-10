@@ -14,26 +14,36 @@
 
 #include "utility.h"
 #include "ubuff.h"
+#include "foperator.h"
 
-#define UCONN_DEFAULT_WINDOWLEN 1024 //默认窗口长度
+#define UCONN_DEFAULT_WINDOWLEN 10 //默认窗口长度
 #define UCONN_DEFAULT_GRAMLEN 1024 //默认报文长度
 #define UCONN_BUFF_SIZE 65536 //默认缓冲区长度
-#define UCONN_TIME_OUT 20 //2秒超时
-#define UCONN_USLEEP_TIME 100000 //100毫秒刷新
+
+#define UCONN_FSM_TIME_OUT 20 //状态机最大未出现状态转移的次数
+#define UCONN_FSM_USLEEP_TIME 10000 //状态机睡眠时间
+
+#define UCONN_NET_DELAY 80000 //报文往返延时毫秒
+#define UCONN_RECV_MAX_TRY_TIME 8 //尝试接收的最大次数
+#define UCONN_RECV_TRY_INTERVAL 5000 //尝试接收的时间间隔
 
 /*uheader_t控制位标记*/
-#define UHEADER_CONTROL_DATA    0b01000000
-#define UHEADER_CONTROL_URG     0b00100000
-#define UHEADER_CONTROL_ACK     0b00010000
-#define UHEADER_CONTROL_PSH     0b00001000
-#define UHEADER_CONTROL_RST     0b00000100
-#define UHEADER_CONTROL_SYN     0b00000010
-#define UHEADER_CONTROL_FIN     0b00000001
-#define UHEADER_CONTROL_ACK_SYN 0b00010010
+#define UHEADER_CONTROL_FILENAME 0b10000000
+#define UHEADER_CONTROL_FILEEOF  0b11000000
+
+#define UHEADER_CONTROL_FILEDATA     0b01000000
+#define UHEADER_CONTROL_URG      0b00100000
+#define UHEADER_CONTROL_ACK      0b00010000
+#define UHEADER_CONTROL_PSH      0b00001000
+#define UHEADER_CONTROL_RST      0b00000100
+#define UHEADER_CONTROL_SYN      0b00000010
+#define UHEADER_CONTROL_FIN      0b00000001
+#define UHEADER_CONTROL_ACK_SYN  0b00010010
 
 //流量控制方法
 enum TrafficControl{
-    Stop_Wait
+    Stop_Wait,
+    GBN
 };
 
 //拥塞控制方法
@@ -96,24 +106,19 @@ protected:
     int sendTimer;
     int recvTimer;
     int sockfd; //套接字
-    int windowLen; //窗口长度
     int gramLen; //报文长度
     TrafficControl trafficControl; //流量控制
     TransmissionControl transmissionControl; //拥塞控制
     struct sockaddr remoteAddr; //远端连接地址
 
     Ubuff * ubuff;
+    Ubuff * usendBuff;
     Useq * remoteSeq;
     pthread_t recvThreadID;
     std::mutex threadMtx;
     std::mutex mtx; //缓冲区锁
 protected:
-
     int _uconnSetNonBlock();
-    /*从远端接收UDP报文*/
-    int _uconnRecvFrom(char *, int);
-    /*向远端发送UDP报文*/
-    int _uconnSendTo(char *, int);
     /*检查报头，包括报头长度
     若报文不正确，则返回-1，否则返回报文长度，
     报文长度可能是0.*/
@@ -128,17 +133,18 @@ protected:
     /*简单双向连接的建立方式*/
     int _uconnAccept_1();
     int _uconnBuild_1(struct sockaddr *);
-    /*停等机制的发送者函数*/
-    int _uSendBuff_1(char *, int);
-
-    int _uRecvBuff(); //接受缓冲区传输
+    /*停等机制的函数*/
+    int _uSendFile_1(FILE *, char *);
+    int _uRecvFile_1();
+    /*滑动窗机制的函数*/
+    int _uSendFile_2(FILE *, char *);
+    int _uRecvFile_2();
     /*简单连接的关闭方式*/
     int _uconnClose_1();
 public:
-    /*停等机制的接收者线程*/
-    static void *_recvThread_1(void *);
-public:
+    int windowLen; //窗口长度
     Uconn(); //初始化
+    Uconn(int); //初始化
     Uconn(TrafficControl, TransmissionControl);
 
     int ubindAddr(struct sockaddr *); //绑定本机地址
@@ -146,9 +152,15 @@ public:
     int uconnAccept(); /*接受连接，超时没有连接则返回-1*/
     int uconnBuild(struct sockaddr *); /*建立连接，超时没有建立则返回-1*/
 
-    int uSendBuff(char *, int); /*发送缓冲区，若失败则返回-1*/
-    int uReadBuff(char *, int); /*读取缓冲区，不移动指针*/
-    int uGetBuff(char *, int); /*读取缓冲区，移动指针*/
+    //int uSendBuff(char *, int); /*发送缓冲区，若失败则返回-1*/
+    //int uRecvBuff(char *, int); /*接受缓冲区，若失败则返回-1*/
+    /*从远端接收UDP报文*/
+    int _uconnRecvFrom(char *, int);
+    /*向远端发送UDP报文*/
+    int _uconnSendTo(char *, int);
+
+    int uSendFile(FILE *, char *);
+    int uRecvFile();
 
     int isClosed();
     int isOpen();

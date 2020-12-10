@@ -16,6 +16,5 @@
 
 #include "ubuff.h"
 #include "uconn.h"
-#include "ftransfer.h"
 
 #endif

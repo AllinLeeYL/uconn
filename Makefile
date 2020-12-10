@@ -1,4 +1,4 @@
-objects = ./src/utility.cpp ./src/foperator.cpp ./src/ubuff.cpp ./src/uconn.cpp ./src/ftransfer.cpp
+objects = ./src/utility.cpp ./src/foperator.cpp ./src/ubuff.cpp ./src/uconn.cpp
 all:
 	g++ -g -o src/test1.out -pthread $(objects) ./src/test1.cpp
 	g++ -g -o src/test2.out -pthread $(objects) ./src/test2.cpp
