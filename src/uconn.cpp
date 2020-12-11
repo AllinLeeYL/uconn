@@ -566,7 +566,7 @@ int Uconn::_uRecvFile_2(char * _filename_){
     fp = fopen(blockbuff, "wb");
     //开始传送数据
     for (this->recvTimer = 0; this->recvTimer < UCONN_FSM_TIME_OUT*10; this->recvTimer = this->recvTimer + 1){
-        for (int n = 0; n < UCONN_RECV_MAX_TRY_TIME; n = n + 1){
+        for (int n = 0; n < this->windowLen * 2 + 3; n = n + 1){
             usleep(UCONN_RECV_TRY_INTERVAL);
             int len = this->_uconnRecvFrom(recvbuff, this->gramLen);
             if (len <= 0 || this->_uconnCheckGram(recvbuff, this->gramLen) < 0){
@@ -606,6 +606,7 @@ int Uconn::_uRecvFile_2(char * _filename_){
             suheader->CheckSum = this->_uconnComputeCheckSum(sendbuff, this->gramLen);
             this->_uconnSendTo(sendbuff, this->gramLen);
         }
+        this->_uconnSendTo(sendbuff, this->gramLen);
         usleep(UCONN_FSM_USLEEP_TIME);
     }
     if (this->recvTimer >= UCONN_FSM_TIME_OUT*10){

@@ -3,7 +3,7 @@
 #define PORT 30001
 
 int uconntest(){
-    Uconn * uconn = new Uconn(1);
+    Uconn * uconn = new Uconn(0);
     char buff[65536] = "fuck!";
     struct sockaddr_in servaddr;
 

@@ -7,22 +7,22 @@ test1:
 	g++ -g -o src/test1.out $(objects) ./src/test1.cpp
 test2:
 	g++ -g -o src/test2.out $(objects) ./src/test2.cpp
-loss:
-	tc qdisc add dev lo root netem loss 2%
-greatloss:
-	tc qdisc add dev lo root netem loss 20%
-delay:
-	tc qdisc add dev lo root netem delay 40ms
-greatdelay:
-	tc qdisc add dev lo root netem delay 200ms
-clearloss:
-	tc qdisc del dev lo root netem loss 2%
-cleargreatloss:
-	tc qdisc del dev lo root netem loss 20%
-cleardealy:
-	tc qdisc del dev lo root netem dealy 40ms
-cleargreatdelay:
-	tc qdisc del dev lo root netem delay 200ms
+
+goodnet:
+	tc qdisc add dev lo root netem loss 1% delay 5ms
+cleargood:
+	tc qdisc del dev lo root netem loss 1% delay 5ms
+
+normalnet:
+	tc qdisc add dev lo root netem loss 3% delay 30ms corrupt 0.2% reorder 2% 8%
+clearnormal:
+	tc qdisc del dev lo root netem loss 3% delay 30ms corrupt 0.2% reorder 2% 8%
+
+badnet:
+	tc qdisc add dev lo root netem loss 12% delay 170ms corrupt 3% reorder 5% 10%
+clearbad:
+	tc qdisc del dev lo root netem loss 12% delay 170ms corrupt 3% reorder 5% 10%
 clean:
+	rm src/*.out
 	rm src/*.o 
 	rm src/*.a
