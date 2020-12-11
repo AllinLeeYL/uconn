@@ -372,93 +372,45 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
             printf("FINISH: %d0%\n", sendPercentage);
             sendPercentage = sendPercentage + 2;
         }
-        if (readSize == blockSize){
-            //文件仍未读取完毕
-            if (this->usendBuff->size() < this->windowLen * blockSize){
-                //窗口未填满
-                this->usendBuff->write(readbuff, blockSize);
-                readSize = fsplt_next(readbuff, fsp, blockSize);
-                continue;
-            }
-            else{
-                //窗口已经填满
-                this->usendBuff->read(windowbuff, blockSize * this->windowLen);
-                for (uint32_t i = 0; i < (uint32_t)(blockSize * this->windowLen); i = i + blockSize){
-                    *(this->remoteSeq) = this->usendBuff->curptr;
-                    suheader->SeqNum = this->ubuff->endptr; //本机期待收到的下一个序列号
-                    suheader->AckNum = *(this->remoteSeq) + i; //远端序列号
-                    suheader->HeadLen = 16;
-                    suheader->Control = UHEADER_CONTROL_FILEDATA;
-                    suheader->Window = this->windowLen;
-                    suheader->CheckSum = 0;
-                    suheader->DataLen = blockSize; //文件名长度包括'\0'
-                    bstrcpy((char *)(sendbuff + sizeof(uheader_t)), (char *)(windowbuff + i), blockSize);
-                    suheader->CheckSum = this->_uconnComputeCheckSum(sendbuff, this->gramLen);
-                    this->_uconnSendTo(sendbuff, this->gramLen);
-                }
-                //接收ACK
-                usleep(UCONN_NET_DELAY);
-                for (int n = 0; n < 2 * this->windowLen; n = n + 1){
-                    usleep(UCONN_RECV_TRY_INTERVAL);
-                    int len = this->_uconnRecvFrom(recvbuff, this->gramLen);
-                    if (len <= 0 || this->_uconnCheckGram(recvbuff, this->gramLen) < 0){
-                        //数据报校验：判断是否是数据报
-                        continue;
-                    }
-                    if (ruheader->AckNum != this->ubuff->endptr || ruheader->Control != UHEADER_CONTROL_ACK){
-                        //正确性校验：判断报文是否正确
-                        continue;
-                    }
-                    //报文正确
-                    this->usendBuff->curptr = ruheader->SeqNum;
-                }
-                continue;
-            }
+        if (readSize > 0 && this->usendBuff->size() < this->windowLen * blockSize){
+            //文件仍未读取完毕 且 窗口未填满
+            this->usendBuff->write(readbuff, readSize);
+            readSize = fsplt_next(readbuff, fsp, blockSize);
+            continue;
         }
-        else{
-            //文件读取完毕，只剩最后一块或完全读完，只需发送剩余缓冲区
-            if (this->usendBuff->size() < this->windowLen * blockSize && readSize > 0){
-                //缓冲区未填满，读取最后一块数据
-                this->usendBuff->write(readbuff, readSize);
-                readSize = fsplt_next(readbuff, fsp, blockSize);
-                continue;
-            }
-            else{
-                //缓冲区已满或者最后一块数据已经读取完毕
-                this->usendBuff->read(windowbuff, this->usendBuff->size());
-                for (uint32_t i = 0; i < this->usendBuff->size(); i = i + blockSize){
-                    int dataLen = this->usendBuff->size() - i < blockSize ? this->usendBuff->size() - i : blockSize;
-                    *(this->remoteSeq) = this->usendBuff->curptr;
-                    suheader->SeqNum = this->ubuff->endptr; //本机期待收到的下一个序列号
-                    suheader->AckNum = *(this->remoteSeq) + i; //远端序列号
-                    suheader->HeadLen = 16;
-                    suheader->Control = UHEADER_CONTROL_FILEDATA;
-                    suheader->Window = this->windowLen;
-                    suheader->CheckSum = 0;
-                    suheader->DataLen = dataLen;
-                    bstrcpy((char *)(sendbuff + sizeof(uheader_t)), (char *)(windowbuff + i), dataLen);
-                    suheader->CheckSum = this->_uconnComputeCheckSum(sendbuff, this->gramLen);
-                    this->_uconnSendTo(sendbuff, this->gramLen);
-                }
-                //接收ACK
-                usleep(UCONN_NET_DELAY);
-                for (int n = 0; n < 2 * this->windowLen; n = n + 1){
-                    usleep(UCONN_RECV_TRY_INTERVAL);
-                    int len = this->_uconnRecvFrom(recvbuff, this->gramLen);
-                    if (len <= 0 || this->_uconnCheckGram(recvbuff, this->gramLen) < 0){
-                        //数据报校验：判断是否是数据报
-                        continue;
-                    }
-                    if (ruheader->AckNum != this->ubuff->endptr || ruheader->Control != UHEADER_CONTROL_ACK){
-                        //正确性校验：判断报文是否正确
-                        continue;
-                    }
-                    //报文正确
-                    this->usendBuff->curptr = ruheader->SeqNum;
-                }
-                continue;
-            }
+        //发送缓冲区
+        this->usendBuff->read(windowbuff, this->usendBuff->size());
+        for (uint32_t i = 0; i < this->usendBuff->size(); i = i + blockSize){
+            int dataLen = this->usendBuff->size() - i < blockSize ? this->usendBuff->size() - i : blockSize;
+            *(this->remoteSeq) = this->usendBuff->curptr;
+            suheader->SeqNum = this->ubuff->endptr; //本机期待收到的下一个序列号
+            suheader->AckNum = *(this->remoteSeq) + i; //远端序列号
+            suheader->HeadLen = 16;
+            suheader->Control = UHEADER_CONTROL_FILEDATA;
+            suheader->Window = this->windowLen;
+            suheader->CheckSum = 0;
+            suheader->DataLen = dataLen;
+            bstrcpy((char *)(sendbuff + sizeof(uheader_t)), (char *)(windowbuff + i), dataLen);
+            suheader->CheckSum = this->_uconnComputeCheckSum(sendbuff, this->gramLen);
+            this->_uconnSendTo(sendbuff, this->gramLen);
         }
+        //接收ACK
+        usleep(UCONN_NET_DELAY);
+        for (int n = 0; n < 2 * this->windowLen; n = n + 1){
+            usleep(UCONN_RECV_TRY_INTERVAL);
+            int len = this->_uconnRecvFrom(recvbuff, this->gramLen);
+            if (len <= 0 || this->_uconnCheckGram(recvbuff, this->gramLen) < 0){
+                //数据报校验：判断是否是数据报
+                continue;
+            }
+            if (ruheader->AckNum != this->ubuff->endptr || ruheader->Control != UHEADER_CONTROL_ACK){
+                //正确性校验：判断报文是否正确
+                continue;
+            }
+                //报文正确
+            this->usendBuff->curptr = ruheader->SeqNum;
+        }
+        continue;
     }
     //文件结尾
     printf("文件数据发送成功！\n");
