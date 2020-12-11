@@ -306,12 +306,14 @@ int Uconn::uRecvFile(char * _filename_){
 }
 //发送文件，停等协议
 int Uconn::_uSendFile_1(FILE * fp, char * _filename_){
-
+    this->windowLen = 1;
+    return this->_uSendFile_2(fp, _filename_);
 }
 //发送文件，滑动窗口协议
 int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
     uint32_t blockSize = this->gramLen - sizeof(uheader_t);
     int readSize = 0;
+    uint32_t sendPercentage = 0;
     fspliter_t * fsp = fsplit(fp, blockSize);
     char * readbuff, * windowbuff, * sendbuff, * recvbuff;
     uheader_t * suheader, * ruheader;
@@ -362,8 +364,14 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
     //文件数据
     _uSendFile_2_FILEDATA:
     printf("文件名发送成功\n");
+    sendPercentage = 0;
     readSize = fsplt_next(readbuff, fsp, blockSize);
     while (readSize > 0 || this->usendBuff->size() > 0){
+        if (fsp->curptr * 10/ fsp->fileSize >= sendPercentage){
+            //发送进度显示
+            printf("FINISH: %d0%\n", sendPercentage);
+            sendPercentage = sendPercentage + 2;
+        }
         if (readSize == blockSize){
             //文件仍未读取完毕
             if (this->usendBuff->size() < this->windowLen * blockSize){
@@ -493,7 +501,8 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
 }
 //接收文件，停等协议
 int Uconn::_uRecvFile_1(char * _filename_){
-
+    this->windowLen = 1;
+    return this->_uRecvFile_2(_filename_);
 }
 
 //接收文件，滑动窗口协议

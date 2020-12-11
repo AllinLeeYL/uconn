@@ -12,20 +12,27 @@ char * INPUT_FILE_NAME;
 int INPUT_WORK_STATUS;
 
 char BUFF[2048];
+char DEFAULT_FILE[512];
 time_t start,stop;
 
-int _cutFilename(char * _fileBaseName_, char * _filepath_){
+int _cutFilename(char * _filepath_){
     for (int i = strlen(_filepath_) - 1; i >= 0; i = i - 1){
         if (_filepath_[i] == '/' || _filepath_[i] == '\\'){
-            _fileBaseName_ = (char *)(_filepath_ + i + 1);
-            return 0;
+            return i + 1;
         }
     }
     return 0;
 }
 
 void print_help(){
-
+    printf("Usage: main.out [options] [target] ...\n");
+    printf("Options:\n");
+    printf("\t-a\t\tSpecify remote IP address.\n");
+    printf("\t-f\t\tSpecify the file to be sent.\n");
+    printf("\t-h\t\tHelp.\n");
+    printf("\t-p\t\tSpecify remote PORT.\n");
+    printf("\t-r\t\tWork as reciver.\n");
+    printf("\t-s\t\tWork as sender.\n");
 }
 
 void init(){
@@ -38,6 +45,8 @@ void init(){
     REMOTE_ADDR.sin_family = AF_INET;
     inet_pton(AF_INET , "127.0.0.1", &REMOTE_ADDR.sin_addr);
 	REMOTE_ADDR.sin_port = htons(LOCAL_PORT);
+    strcpy(DEFAULT_FILE, "./test/2.jpg");
+    INPUT_FILE_NAME = DEFAULT_FILE;
 }
 
 void send(){
@@ -61,12 +70,13 @@ void send(){
         printf("文件\"%s\"不存在\n", INPUT_FILE_NAME);
         return;
     }
-    _cutFilename(fileBaseName, INPUT_FILE_NAME);
+    fileBaseName = (char *)(INPUT_FILE_NAME + _cutFilename(INPUT_FILE_NAME));
     
     start = time(NULL);
     if (uconn->uSendFile(fp, fileBaseName) > 0){
         printf("文件\"%s\"发送成功\n", INPUT_FILE_NAME);
     }
+    uconn->uconnClose();
     stop = time(NULL);
     printf("发送用时:%ld\n",(stop-start));
 
@@ -87,6 +97,7 @@ void recv(){
         }
         else{
             printf("文件\"%s\"接收成功\n", BUFF);
+            return;
         }
     }
     return;
@@ -98,6 +109,7 @@ int main(int argc, char ** argv){
         print_help();
         return 0;
     }
+    init();
     for (int i = 1; i < argc; i = i + 1){
         //根据参数执行功能
         if (strcmp(argv[i], "-h") == 0){

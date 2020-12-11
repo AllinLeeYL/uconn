@@ -22,9 +22,9 @@ int uconntest(){
     printf("连接成功\n");
     time_t start,stop;
     start = time(NULL);
-    FILE * fp = fopen("./test/3.jpg", "rb");
-    if (uconn->uSendFile(fp, "3.jpg") > 0){
-        printf("文件名：%s\n", "3.jpg");
+    FILE * fp = fopen("./test/1.jpg", "rb");
+    if (uconn->uSendFile(fp, "1.jpg") > 0){
+        printf("文件名：%s\n", "1.jpg");
     }
     
     fclose(fp);
