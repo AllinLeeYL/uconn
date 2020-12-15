@@ -24,5 +24,3 @@ clearbad:
 	tc qdisc del dev lo root netem loss 12% delay 170ms corrupt 3% reorder 5% 10%
 clean:
 	rm src/*.out
-	rm src/*.o 
-	rm src/*.a

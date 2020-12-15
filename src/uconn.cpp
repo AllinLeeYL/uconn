@@ -396,7 +396,7 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
         }
         //接收ACK
         usleep(UCONN_NET_DELAY);
-        for (int n = 0; n < 2 * this->windowLen; n = n + 1){
+        for (int n = 0; n < 2 * this->windowLen + 3; n = n + 1){
             usleep(UCONN_RECV_TRY_INTERVAL);
             int len = this->_uconnRecvFrom(recvbuff, this->gramLen);
             if (len <= 0 || this->_uconnCheckGram(recvbuff, this->gramLen) < 0){
