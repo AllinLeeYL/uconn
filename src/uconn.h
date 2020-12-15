@@ -17,9 +17,11 @@
 #include "ubuff.h"
 #include "foperator.h"
 
-#define UCONN_DEFAULT_WINDOWLEN 31 //默认窗口长度
+#define UCONN_INIT_SSTHRESH 32
+
+#define UCONN_DEFAULT_WINDOWLEN 1 //默认窗口长度
 #define UCONN_DEFAULT_GRAMLEN 2048 //默认报文长度
-#define UCONN_BUFF_SIZE UCONN_DEFAULT_GRAMLEN*UCONN_DEFAULT_WINDOWLEN+1 //默认缓冲区长度
+#define UCONN_BUFF_SIZE UCONN_DEFAULT_GRAMLEN*256*2+1 //默认缓冲区长度
 
 #define UCONN_FSM_TIME_OUT 40 //状态机最大未出现状态转移的次数
 #define UCONN_FSM_USLEEP_TIME 2000 //状态机睡眠时间
@@ -144,6 +146,7 @@ protected:
     int _uconnClose_1();
 public:
     int windowLen; //窗口长度
+    int ssthresh;
     Uconn(); //初始化
     Uconn(int); //初始化
     Uconn(TrafficControl, TransmissionControl);

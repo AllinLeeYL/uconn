@@ -239,6 +239,7 @@ Uconn::Uconn(){
     this->recvTimer = 0;
     this->sockfd = socket(AF_INET , SOCK_DGRAM , 0);
     this->windowLen = UCONN_DEFAULT_WINDOWLEN;
+    this->ssthresh = UCONN_INIT_SSTHRESH;
     this->gramLen = UCONN_DEFAULT_GRAMLEN;
     this->remoteSeq = new Useq(UCONN_BUFF_SIZE);
     this->ubuff = new Ubuff(UCONN_BUFF_SIZE);
@@ -259,6 +260,7 @@ Uconn::Uconn(int _n_){
     this->recvTimer = 0;
     this->sockfd = socket(AF_INET , SOCK_DGRAM , 0);
     this->windowLen = UCONN_DEFAULT_WINDOWLEN;
+    this->ssthresh = UCONN_INIT_SSTHRESH;
     this->gramLen = UCONN_DEFAULT_GRAMLEN;
     this->remoteSeq = new Useq(UCONN_BUFF_SIZE);
     this->ubuff = new Ubuff(UCONN_BUFF_SIZE);
@@ -319,8 +321,8 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
     uheader_t * suheader, * ruheader;
     readbuff = (char *)malloc(blockSize);
     memset(readbuff, 0, blockSize);
-    windowbuff = (char *)malloc(blockSize * this->windowLen);
-    memset(windowbuff, 0, blockSize * this->windowLen);
+    windowbuff = (char *)malloc(blockSize * 256);
+    memset(windowbuff, 0, blockSize * 256);
     sendbuff = (char *)malloc(this->gramLen);
     memset(sendbuff, 0, this->gramLen);
     recvbuff = (char *)malloc(this->gramLen);
@@ -394,9 +396,13 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
             suheader->CheckSum = this->_uconnComputeCheckSum(sendbuff, this->gramLen);
             this->_uconnSendTo(sendbuff, this->gramLen);
         }
+        uint32_t next_remote_position = *(this->remoteSeq) + this->usendBuff->size();
+        uint32_t last_seq = 0;
+        int last_seq_time = 0;
+        int slow_start = 0;
         //接收ACK
         usleep(UCONN_NET_DELAY);
-        for (int n = 0; n < 2 * this->windowLen + 3; n = n + 1){
+        for (int n = 0; n < 2 * this->windowLen; n = n + 1){
             usleep(UCONN_RECV_TRY_INTERVAL);
             int len = this->_uconnRecvFrom(recvbuff, this->gramLen);
             if (len <= 0 || this->_uconnCheckGram(recvbuff, this->gramLen) < 0){
@@ -407,8 +413,38 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
                 //正确性校验：判断报文是否正确
                 continue;
             }
-                //报文正确
+            //报文正确
             this->usendBuff->curptr = ruheader->SeqNum;
+            last_seq = ruheader->SeqNum;
+            last_seq_time = last_seq_time + 1;
+            if (last_seq_time > 3){
+                break;
+            }
+            //慢启动 或 AIMD
+            if (this->windowLen < this->ssthresh){
+                if (this->windowLen < 128){
+                    this->windowLen = this->windowLen * 2;
+                }
+            }
+            else{
+                if (this->windowLen < 255){
+                    if (slow_start == 0){
+                        this->windowLen = this->windowLen + 1;
+                    }
+                    else{
+                        this->windowLen = this->windowLen + 3;
+                    }
+                }
+            }
+        }
+        slow_start = 1;
+        this->ssthresh = int(this->windowLen / 2);
+        if (last_seq_time > 3){
+            this->windowLen = this->ssthresh + 3;
+        }
+        if (this->usendBuff->curptr != next_remote_position){
+            this->windowLen = 1;
+            slow_start = 0;
         }
         continue;
     }
@@ -525,10 +561,10 @@ int Uconn::_uRecvFile_2(char * _filename_){
                 //数据报校验：判断是否是数据报
                 continue;
             }
-            if (*(this->ubuff) > ruheader->AckNum){
+            /*if (*(this->ubuff) > ruheader->AckNum){
                 //正确性校验：判断报文是否正确
                 continue;
-            }
+            }*/
             if (ruheader->Control == UHEADER_CONTROL_FILENAME){
                 //接收到的仍是文件名，回送ACK
                 goto _uRecvFile_2_FILEDATA;
@@ -558,7 +594,6 @@ int Uconn::_uRecvFile_2(char * _filename_){
             suheader->CheckSum = this->_uconnComputeCheckSum(sendbuff, this->gramLen);
             this->_uconnSendTo(sendbuff, this->gramLen);
         }
-        this->_uconnSendTo(sendbuff, this->gramLen);
         usleep(UCONN_FSM_USLEEP_TIME);
     }
     if (this->recvTimer >= UCONN_FSM_TIME_OUT*10){
