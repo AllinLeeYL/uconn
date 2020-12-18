@@ -169,31 +169,35 @@ int Uconn::_uconnBuild_1(struct sockaddr * _addr_){
                 suheader.CheckSum = 0;
                 suheader.DataLen = 0;
                 suheader.CheckSum = this->_uconnComputeCheckSum((char *)(&suheader), sizeof(uheader_t));
-                
+                struct timeval start, end;
+                gettimeofday(&start, NULL);
                 this->_uconnSendTo((char *)(&suheader), this->gramLen);
-
-                usleep(UCONN_NET_DELAY);
                 uheader = (uheader_t *)buff;
                 for (int try_time = 0; try_time < UCONN_RECV_MAX_TRY_TIME; try_time = try_time + 1){
+                    sleepnsec(1000000); //sleep1毫秒
                     int n = this->_uconnRecvFrom(buff, this->gramLen);
                     if (n < (int)sizeof(uheader_t)){
-                        break;
+                        continue;
                     }
                     n = this->_uconnCheckHeader((uheader_t *)buff);
                     if (n != 0){
-                        break;
+                        continue;
                     }
                     if (this->_uconnCheckGram(buff, sizeof(uheader_t)) < 0){
-                        break;
+                        continue;
                     }
-                    usleep(UCONN_RECV_TRY_INTERVAL);
+                    break;
                 }
                 if (uheader->Control != UHEADER_CONTROL_ACK_SYN){
                     break;
                 }
                 this->usendBuff->setInitPtr(uheader->SeqNum); //记录远端序列号
+                gettimeofday(&end, NULL);
+                this->netdelay = ((end.tv_sec-start.tv_sec) * 1000000 + end.tv_usec-start.tv_usec)*1100 + 2000000;
+                printf("预计报文往返延时：%dms\n", this->netdelay/1000000);
                 this->commonState = Established;
                 this->sendTimer = 0;
+                
                 break;
             }
             case Established:{
@@ -212,6 +216,16 @@ int Uconn::_uconnBuild_1(struct sockaddr * _addr_){
 
     free(buff);
     return -1;
+}
+
+int Uconn::_uconnAccept_2(){
+    int result = this->_uconnAccept_1();
+    return result;
+}
+
+int Uconn::_uconnBuild_2(struct sockaddr * _addr_){
+    int result = this->_uconnBuild_2(_addr_);
+    return result;
 }
 
 int Uconn::_uconnClose_1(){
@@ -237,6 +251,7 @@ Uconn::Uconn(){
     memset((void *)(&(this->remoteAddr)), 0, sizeof(struct sockaddr));
     this->sendTimer = 0;
     this->recvTimer = 0;
+    this->netdelay = 10000000; // 默认延时10ms
     this->sockfd = socket(AF_INET , SOCK_DGRAM , 0);
     this->windowLen = UCONN_DEFAULT_WINDOWLEN;
     this->ssthresh = UCONN_INIT_SSTHRESH;
@@ -258,6 +273,7 @@ Uconn::Uconn(int _n_){
     memset((void *)(&(this->remoteAddr)), 0, sizeof(struct sockaddr));
     this->sendTimer = 0;
     this->recvTimer = 0;
+    this->netdelay = 10000000; // 默认延时10ms
     this->sockfd = socket(AF_INET , SOCK_DGRAM , 0);
     this->windowLen = UCONN_DEFAULT_WINDOWLEN;
     this->ssthresh = UCONN_INIT_SSTHRESH;
@@ -342,7 +358,7 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
     suheader->CheckSum = this->_uconnComputeCheckSum(sendbuff, this->gramLen);
     for (this->sendTimer = 0;this->sendTimer < UCONN_FSM_TIME_OUT; this->sendTimer = this->sendTimer + 1){
         this->_uconnSendTo(sendbuff, this->gramLen);
-        usleep(UCONN_NET_DELAY);
+        sleepnsec(this->netdelay);
         for (int n = 0; n < UCONN_RECV_MAX_TRY_TIME; n = n + 1){
             usleep(UCONN_RECV_TRY_INTERVAL);
             int len = this->_uconnRecvFrom(recvbuff, this->gramLen);
@@ -372,7 +388,7 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
         if (fsp->curptr * 10/ fsp->fileSize >= sendPercentage){
             //发送进度显示
             printf("FINISH: %d0%\n", sendPercentage);
-            sendPercentage = sendPercentage + 2;
+            sendPercentage = sendPercentage + 1;
         }
         if (readSize > 0 && this->usendBuff->size() < this->windowLen * blockSize){
             //文件仍未读取完毕 且 窗口未填满
@@ -401,8 +417,8 @@ int Uconn::_uSendFile_2(FILE * fp, char * _filename_){
         int last_seq_time = 0;
         int slow_start = 0;
         //接收ACK
-        usleep(UCONN_NET_DELAY);
-        for (int n = 0; n < 2 * this->windowLen; n = n + 1){
+        sleepnsec(this->netdelay);
+        for (int n = 0; n < 2 * this->windowLen + 3; n = n + 1){
             usleep(UCONN_RECV_TRY_INTERVAL);
             int len = this->_uconnRecvFrom(recvbuff, this->gramLen);
             if (len <= 0 || this->_uconnCheckGram(recvbuff, this->gramLen) < 0){

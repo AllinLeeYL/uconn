@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <sys/time.h>
 #include <string.h>
 #include <stdint.h>
 #include <sys/socket.h>
@@ -108,6 +109,7 @@ protected:
     
     int sendTimer;
     int recvTimer;
+    long netdelay;
     int sockfd; //套接字
     int gramLen; //报文长度
     TrafficControl trafficControl; //流量控制
@@ -136,6 +138,8 @@ protected:
     /*简单双向连接的建立方式*/
     int _uconnAccept_1();
     int _uconnBuild_1(struct sockaddr *);
+    int _uconnAccept_2();
+    int _uconnBuild_2(struct sockaddr *);
     /*停等机制的函数*/
     int _uSendFile_1(FILE *, char *);
     int _uRecvFile_1(char *);
@@ -144,6 +148,8 @@ protected:
     int _uRecvFile_2(char *);
     /*简单连接的关闭方式*/
     int _uconnClose_1();
+protected:
+    static void * recvThread_1(void * arg);
 public:
     int windowLen; //窗口长度
     int ssthresh;
