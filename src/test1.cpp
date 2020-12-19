@@ -1,4 +1,5 @@
 #include "Config.h"
+#include <sys/time.h>
 
 #define PORT 30001
 
@@ -32,10 +33,14 @@ int uconntest(){
     printf("发送用时:%ld\n",(stop-start));
 }
 
-int filetest(){
-    
+int sleeptest(){
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
+    sleepnsec(2000000000);
+    gettimeofday(&end, NULL);
+    printf("%d\n", (end.tv_sec-start.tv_sec) * 1000000 + end.tv_usec-start.tv_usec);
 }
 
 int main(){
-    uconntest();
+    sleeptest();
 }

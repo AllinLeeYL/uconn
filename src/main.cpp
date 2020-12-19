@@ -1,6 +1,6 @@
 #include "Config.h"
 
-#define LOCAL_PORT 30001
+#define LOCAL_PORT 30001    //监听端口
 #define WORK_STATUS_SEND 0
 #define WORK_STATUS_RECV 1
 
@@ -36,7 +36,7 @@ void print_help(){
 }
 
 void init(){
-    uconn = new Uconn(1);
+    uconn = new Uconn(0);
     bzero(&LOCAL_ADDR , sizeof(struct sockaddr_in));
     LOCAL_ADDR.sin_family = AF_INET;
 	LOCAL_ADDR.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -55,7 +55,7 @@ void send(){
 
 	LOCAL_ADDR.sin_port = htons(LOCAL_PORT+1);
     uconn->ubindAddr((struct sockaddr *)&LOCAL_ADDR);
-
+    struct timeval start, end;
     for (int i = 0; i < 3; i = i + 1){
         if (uconn->uconnBuild((struct sockaddr *)&REMOTE_ADDR) > 0){
             printf("连接建立\n");
@@ -71,15 +71,16 @@ void send(){
         return;
     }
     fileBaseName = (char *)(INPUT_FILE_NAME + _cutFilename(INPUT_FILE_NAME));
-    
-    start = time(NULL);
+    gettimeofday(&start, NULL);
     if (uconn->uSendFile(fp, fileBaseName) > 0){
         printf("文件\"%s\"发送成功\n", INPUT_FILE_NAME);
     }
+    gettimeofday(&end, NULL);
+    fspliter_t *fsp = fsplit(fp, 1024);
     uconn->uconnClose();
-    stop = time(NULL);
-    printf("发送用时:%ld\n",(stop-start));
-
+    long totaltime = (end.tv_sec-start.tv_sec) * 1000000 + end.tv_usec-start.tv_usec;
+    printf("传输时间：%.2f秒\n", float(totaltime)/1000000);
+    printf("吞吐率：%.2fMbps\n", float(fsp->fileSize)*8/totaltime);
     fclose(fp);
 }
 

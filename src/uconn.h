@@ -20,7 +20,7 @@
 
 #define UCONN_INIT_SSTHRESH 32
 
-#define UCONN_DEFAULT_WINDOWLEN 1 //默认窗口长度
+#define UCONN_DEFAULT_WINDOWLEN 32 //默认窗口长度
 #define UCONN_DEFAULT_GRAMLEN 2048 //默认报文长度
 #define UCONN_BUFF_SIZE UCONN_DEFAULT_GRAMLEN*256*2+1 //默认缓冲区长度
 
@@ -47,12 +47,14 @@
 //流量控制方法
 enum TrafficControl{
     Stop_Wait,
-    GBN
+    GBN,
+    GBN_1
 };
 
 //拥塞控制方法
 enum TransmissionControl{
-    default_control
+    default_control,
+    RENO
 };
 
 //uconn公有状态
@@ -146,6 +148,9 @@ protected:
     /*滑动窗机制的函数*/
     int _uSendFile_2(FILE *, char *);
     int _uRecvFile_2(char *);
+    /*带拥塞控制的滑动窗机制的函数*/
+    int _uSendFile_3(FILE *, char *);
+    int _uRecvFile_3(char *);
     /*简单连接的关闭方式*/
     int _uconnClose_1();
 protected:
